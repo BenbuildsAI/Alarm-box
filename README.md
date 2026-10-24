@@ -14,3 +14,4 @@ GPIO Wires
 
 All parts can be found on Amazon. "yay!"
 
+Box "Base.stl" and "Box Lid.stl" are the 3D box design's for you to download and print. Or you can make your own with something else.
