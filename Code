@@ -1,0 +1,167 @@
+#include "SparkFun_Qwiic_Ultrasonic_Arduino_Library.h"
+#include <Wire.h>
+
+QwiicUltrasonic us;
+const uint8_t US_ADDR = 0x2F;
+
+const int SPEAKER_PIN = 6;
+const int BUTTON_PIN  = 4;
+
+const int THRESHOLD_MM   = 45;   // >45mm = OPEN
+const int REQUIRED_READS = 2;    // consecutive readings to commit state
+const int VICTORY_PCT    = 5;    // 5% victory, 95% alarm
+
+// Button debounce
+const unsigned long DEBOUNCE_MS = 50;
+int lastBtnStable = HIGH, lastBtnReading = HIGH;
+unsigned long lastBtnChangeMs = 0;
+
+// States
+bool isOpen = false;       // current committed lid state
+bool alarmOn = false;      // siren running
+bool awaitingSecondPress = false;  // we pressed once; waiting for press #2
+bool inCountdown = false;          // 10s reset window
+unsigned long countdownStartMs = 0;
+const unsigned long COUNTDOWN_MS = 10000;
+
+// Consecutive read tracking
+int  consec = 0;
+bool pendingOpen = false;
+
+// ---- Sounds ----
+void playVictory() {
+  tone(SPEAKER_PIN, 523, 100); delay(120);
+  tone(SPEAKER_PIN, 659, 100); delay(120);
+  tone(SPEAKER_PIN, 784, 100); delay(120);
+  tone(SPEAKER_PIN, 1047, 300); delay(320);
+  noTone(SPEAKER_PIN);
+}
+
+void startAlarm() { alarmOn = true; tone(SPEAKER_PIN, 1000); }
+void stopAlarm()  { if (alarmOn) { noTone(SPEAKER_PIN); alarmOn = false; } }
+
+void updateSiren() {
+  static unsigned long lastFlip = 0;
+  static bool high = true;
+  if (!alarmOn) return;
+  if (millis() - lastFlip > 300) {
+    tone(SPEAKER_PIN, high ? 1000 : 800);
+    high = !high;
+    lastFlip = millis();
+  }
+}
+
+// ---- Button logic (two-press + countdown) ----
+bool buttonPressedEdge() {
+  int r = digitalRead(BUTTON_PIN);
+  if (r != lastBtnReading) { lastBtnChangeMs = millis(); lastBtnReading = r; }
+  if (millis() - lastBtnChangeMs > DEBOUNCE_MS) {
+    if (r != lastBtnStable) {
+      lastBtnStable = r;
+      return (r == LOW); // edge: pressed
+    }
+  }
+  return false;
+}
+
+void handleButton() {
+  if (!buttonPressedEdge()) return;
+
+  if (!awaitingSecondPress && !inCountdown) {
+    // First press: stop/mute alarm (if any) and arm for second press
+    stopAlarm();
+    awaitingSecondPress = true;
+    Serial.println("Button #1: Alarm stopped. Press again to start 10s reset window.");
+  } else if (awaitingSecondPress && !inCountdown) {
+    // Second press: start countdown
+    inCountdown = true;
+    awaitingSecondPress = false;
+    countdownStartMs = millis();
+    Serial.println("Button #2: 10s countdown started. Close the lid to reset!");
+  }
+}
+
+// ---- Setup / loop ----
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) {}
+
+  Wire.begin();
+  if (!us.begin(US_ADDR)) {
+    Serial.println("Ultrasonic not found. Check Qwiic wiring.");
+    while (1) {}
+  }
+  pinMode(SPEAKER_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  randomSeed(analogRead(0));
+
+  lastBtnStable = lastBtnReading = digitalRead(BUTTON_PIN);
+
+  Serial.println("Mystery Box ready: 2-press button + 10s countdown, 5% victory.");
+}
+
+void loop() {
+  handleButton();
+
+  uint16_t dist = 0;
+  if (!us.triggerAndRead(dist)) {
+    Serial.println("Sensor read failed");
+    delay(100);
+    return;
+  }
+
+  bool readingOpen = (dist > THRESHOLD_MM);
+  Serial.print("Distance "); Serial.print(dist); Serial.println(" mm");
+
+  // Commit state after REQUIRED_READS
+  if (readingOpen != isOpen) {
+    if (pendingOpen == readingOpen) {
+      consec++;
+      if (consec >= REQUIRED_READS) {
+        // State change
+        if (readingOpen) {
+          Serial.println("CLOSED -> OPEN");
+          // If not in countdown, trigger alarm/victory
+          if (!inCountdown) {
+            if (random(100) < VICTORY_PCT) { Serial.println("Victory!"); playVictory(); }
+            else { Serial.println("Alarm!"); startAlarm(); }
+          }
+        } else {
+          Serial.println("OPEN -> CLOSED");
+          // If we close during countdown, reset; otherwise just stop alarm
+          if (inCountdown) {
+            inCountdown = false;
+            stopAlarm();
+            Serial.println("Reset complete (closed during countdown).");
+          } else {
+            stopAlarm();
+          }
+        }
+        isOpen = readingOpen;
+        consec = 0;
+      }
+    } else {
+      pendingOpen = readingOpen;
+      consec = 1;
+    }
+  } else {
+    consec = 0;
+    pendingOpen = isOpen;
+  }
+
+  // Handle countdown timeout
+  if (inCountdown && (millis() - countdownStartMs >= COUNTDOWN_MS)) {
+    inCountdown = false;
+    // If still open at timeout, restart alarm
+    if (isOpen) {
+      Serial.println("Countdown ended: lid still open -> alarm restarts.");
+      startAlarm();
+    } else {
+      Serial.println("Countdown ended: lid is closed -> already reset.");
+    }
+  }
+
+  updateSiren();
+  delay(100);
+}
