@@ -4,21 +4,22 @@ Lift the lid, an Alarm goes off.
 I built this box for a science fair, and as a personal project for something fun.
 
 Parts:
-DFRobot FIREBEETLE 2 ESP32-C6        
 
-SparkFun Ultrasonic distance sensor
+(1) DFRobot FIREBEETLE 2 ESP32-C6        
 
-CQRobot-Enclosed-Speakers
+(2) SparkFun Ultrasonic distance sensor
 
-3.7V 2000mAh 103450 1S LiPo Battery
+(3) CQRobot-Enclosed-Speakers
 
-Omron B3F-1000 Tactile Switch
+(4) 3.7V 2000mAh 103450 1S LiPo Battery
 
-ELEGOO 400-Point Solderless Breadboard 
+(5) Omron B3F-1000 Tactile Switch
 
-GPIO Wires
+(6) ELEGOO 400-Point Solderless Breadboard 
 
-All parts can be found on Amazon. "yay!"
+(7) GPIO Wires
+
+All parts can be found on Amazon.
 
 
 Things you should know:
