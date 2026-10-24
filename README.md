@@ -22,6 +22,8 @@ Parts:
 All parts can be found on Amazon.
 
 
+
+
 Things you should know:
 
 (1) The box is currently going through aa redesign.
@@ -33,6 +35,7 @@ Things you should know:
 (4) The sparkfun Ultrasonic isn't optional. Its the only one that runs with the power that the 3.7V 2000mAh can suply.
 
 (5) In Arduino, you will need to download the "SparkFun_Qwiic_Ultrasonic_Arduino_Library.h" For it to work.
+
 
 
 Enjoy.
